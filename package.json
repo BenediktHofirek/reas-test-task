@@ -1,7 +1,22 @@
 {
   "name": "reas-test-task",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/app.js",
   "author": "utility4u <benedikthofirek@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "dev": "ts-node src/app.ts",
+    "start": "ts-node dist/app.js",
+    "build": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.20",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.4.13",
+    "axios": "^0.19.0",
+    "mongoose": "^5.8.1"
+  }
 }
