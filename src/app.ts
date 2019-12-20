@@ -7,7 +7,10 @@ import { downloadFile } from './services/downloadFile';
 import { unzipFile } from './services/unzipFile';
 import { parseFileToDatabase } from './services/parseFileToDatabase';
 
+//variables that can possibly be dynamicaly given to programm
 const databaseName = 'reasTestCaseDB';
+const mainCollectionName = 'landrecords';
+const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
 
 async function main() {
 	const downloadUrls: string[] = await getDownloadUrls();
@@ -33,10 +36,8 @@ async function main() {
 
 	console.log(unzippedFilePath);
 
-	await parseFileToDatabase(unzippedFilePath, databaseName);
+	await parseFileToDatabase(unzippedFilePath, databaseName, mainCollectionName, searchTags);
 	//delete created directory
 	await deleteDirectory(directory);
-	console.log('end');
-	//process.exit();
 }
 main();

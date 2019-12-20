@@ -1,7 +1,12 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 
-export function parseFileToDatabase(filePath: string, databaseName: string): Promise<void> {
+export function parseFileToDatabase(
+	filePath: string,
+	databaseName: string,
+	mainCollectionName: string,
+	searchTags: string[]
+): Promise<void> {
 	return new Promise(async (resolve, reject) => {
 		const { recordDate, cityNumber } = getInfo(filePath);
 		interface TagRecord {
@@ -9,24 +14,9 @@ export function parseFileToDatabase(filePath: string, databaseName: string): Pro
 			position: number;
 		}
 
-		const searchTags = [
-			'vf:Obec',
-			'vf:CastObce',
-			'vf:Ulice',
-			'vf:StavebniObjekt',
-			'vf:Parcela',
-			'vf:AdresniMisto'
-		];
-
 		let maxTagLength = 0;
 		const documentTemplate: any = {};
 		const schemaObject: any = {};
-
-		//create document model
-		const landRecordSchema = new mongoose.Schema({ ...schemaObject, cityNumber: Number, recordDate: String });
-		const model: any = {
-			landrecords: mongoose.model('landrecords', landRecordSchema)
-		};
 
 		//initialize
 		searchTags.forEach((tag) => {
@@ -44,7 +34,7 @@ export function parseFileToDatabase(filePath: string, databaseName: string): Pro
 				process.exit(1);
 			});
 
-		await createDocument(model, { ...documentTemplate, recordDate, cityNumber }).catch((err: any) => {
+		await createDocument(mainCollectionName, { ...documentTemplate, recordDate, cityNumber }).catch((err: any) => {
 			console.log('Cannot create document: ' + err);
 			process.exit(1);
 		});
@@ -54,7 +44,7 @@ export function parseFileToDatabase(filePath: string, databaseName: string): Pro
 		fileStream.setEncoding('utf8');
 
 		let globalData = '';
-		fileStream.on('readable', function() {
+		fileStream.on('readable', () => {
 			const documentUpdate = Object.assign({}, documentTemplate);
 			let localData = globalData;
 			globalData = '';
@@ -101,7 +91,7 @@ export function parseFileToDatabase(filePath: string, databaseName: string): Pro
 			});
 
 			//save to database
-			saveToDatabase(documentUpdate, model, cityNumber, recordDate);
+			saveToDatabase(documentUpdate, mainCollectionName, cityNumber, recordDate);
 		});
 
 		fileStream.on('close', () => {
@@ -128,14 +118,13 @@ function openDatabaseConnection(databaseName: string): Promise<void> {
 	});
 }
 
-function createDocument(model: any, firstDocument: any): Promise<void> {
+function createDocument(mainCollectionName: string, firstDocument: any): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const { cityNumber, recordDate } = firstDocument;
-		const collectionName = Object.keys(model)[0];
-		
+
 		//delete document if exist, because we want not to have two documents with same data
-		model[collectionName].deleteOne({ cityNumber, recordDate }, () => {
-			mongoose.connection.collection(collectionName).insertOne(firstDocument, (err: any, rec: any) => {
+		mongoose.connection.collection(mainCollectionName).deleteOne({ cityNumber, recordDate }, () => {
+			mongoose.connection.collection(mainCollectionName).insertOne(firstDocument, (err: any, rec: any) => {
 				if (err) {
 					reject();
 				} else {
@@ -146,23 +135,24 @@ function createDocument(model: any, firstDocument: any): Promise<void> {
 	});
 }
 
-function saveToDatabase(documentUpdate: any, model: any, cityNumber: number, recordDate: string): void {
-	const mainCollectionName = Object.keys(model)[0];
+function saveToDatabase(documentUpdate: any, mainCollectionName: string, cityNumber: number, recordDate: string): void {
 	Object.keys(documentUpdate).forEach((key) => {
 		documentUpdate[key].forEach((value: string[]) => {
 			mongoose.connection.collection(key).insertOne({ [key]: value }, (err: any, insertedItem: any) => {
 				if (err) {
-					console.log('errr', err);
+					console.log(err);
 				} else {
-					mongoose.connection.collection(mainCollectionName).updateOne(
-						{ cityNumber, recordDate },
-						{ $push: { [key]: insertedItem.insertedId } },
-						(err: any) => {
-							if (err) {
-								console.log(err);
+					mongoose.connection
+						.collection(mainCollectionName)
+						.updateOne(
+							{ cityNumber, recordDate },
+							{ $push: { [key]: insertedItem.insertedId } },
+							(err: any) => {
+								if (err) {
+									console.log(err);
+								}
 							}
-						}
-					);
+						);
 				}
 			});
 		});

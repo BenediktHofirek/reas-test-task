@@ -20,7 +20,7 @@ export async function deleteDirectory(directory: string): Promise<boolean> {
 				const path = directory + file;
 				fs.stat(path, async (err: any, stats: any) => {
 					if (err) {
-						console.log(err, 'ERROR');
+						console.log(err);
 					} else if (stats.isDirectory()) {
 						const res = await deleteDirectory(path + sep);
 						counter++;
