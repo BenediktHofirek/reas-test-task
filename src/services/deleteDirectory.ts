@@ -1,5 +1,3 @@
-import { resolve } from 'dns';
-
 const fs = require('fs');
 const { sep } = require('path');
 
