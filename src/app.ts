@@ -7,7 +7,7 @@ import { downloadFile } from './services/downloadFile';
 import { unzipFile } from './services/unzipFile';
 import { parseFileToDatabase } from './services/parseFileToDatabase';
 
-const databaseName = 'reas-test-case';
+const databaseName = 'reasTestCaseDB';
 
 async function main() {
 	const downloadUrls: string[] = await getDownloadUrls();
@@ -35,8 +35,8 @@ async function main() {
 
 	await parseFileToDatabase(unzippedFilePath, databaseName);
 	//delete created directory
-	console.log('go to delete directory');
 	await deleteDirectory(directory);
 	console.log('end');
+	//process.exit();
 }
 main();
