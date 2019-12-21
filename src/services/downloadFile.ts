@@ -1,17 +1,14 @@
-const fs = require('fs');
 const https = require('https');
+const unzip = require('unzip');
 
-export function downloadFile(fileUrl:string | undefined, path: string):Promise<void>{
+export function downloadFile(fileUrl:string | undefined, directory: string):Promise<void>{
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(path);
 
     https.get(fileUrl, (res:any)=> {
-        res.on('data', (data:any)=> {
-          file.write(data);
-        });
+      res.pipe(unzip.Extract({ path: directory}));
         
         res.on('end', ()=> {
-          file.end();
+          console.log('resolved');
           resolve();
         });
       }).on('error', (e:any) => {

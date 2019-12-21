@@ -24,20 +24,15 @@ async function main() {
 	//I assume than we want to download only the latest package
 	const directory = await createDirectory();
 
-	const lastPackageUrl = downloadUrls.pop();
-	const fileName = url.parse(lastPackageUrl).pathname.split('/').pop();
-	const path = directory + fileName;
+	const newestPackageUrl = downloadUrls.pop();
+	const zippedFileName = url.parse(newestPackageUrl).pathname.split('/').pop();
+	const unzippedFileName = zippedFileName.slice(0, zippedFileName.length -4);
 
-	await downloadFile(lastPackageUrl, path).then(() => {}, () => process.exit(1));
+	await downloadFile(newestPackageUrl, directory).catch(() => process.exit(1));
 
-	const unzippedFilePath = await unzipFile(path, bufferSize).catch(() => {
-		console.log('Cannot unzip file');
-		process.exit();
-	});
-
-	console.log('Path to file:', unzippedFilePath);
-
-	await parseFileToDatabase(unzippedFilePath, databaseName, mainCollectionName, searchTags, bufferSize);
+	console.log('Path to file:', directory + unzippedFileName, 'file',unzippedFileName);
+	
+	await parseFileToDatabase(directory+unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
 }
