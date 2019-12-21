@@ -1,9 +1,9 @@
 const url = require('url');
+const fs = require('fs');
 import { getDownloadUrls } from './services/getDownloadUrls';
 import { createDirectory } from './services/createDirectory';
 import { deleteDirectory } from './services/deleteDirectory';
 import { downloadFile } from './services/downloadFile';
-import { unzipFile } from './services/unzipFile';
 import { parseFileToDatabase } from './services/parseFileToDatabase';
 
 //variables that can possibly be dynamicaly given to programm
@@ -26,13 +26,18 @@ async function main() {
 
 	const newestPackageUrl = downloadUrls.pop();
 	const zippedFileName = url.parse(newestPackageUrl).pathname.split('/').pop();
-	const unzippedFileName = zippedFileName.slice(0, zippedFileName.length -4);
+	const unzippedFileName = zippedFileName.slice(0, zippedFileName.length - 4);
+	// fs.watch(directory, (eventType: any) => {
+	// 	fs.stat(directory + unzippedFileName, (err: any, stat: any) => {
+	// 		console.log('stat', stat.size / 1000);
+	// 	});
+	// });
 
 	await downloadFile(newestPackageUrl, directory).catch(() => process.exit(1));
 
-	console.log('Path to file:', directory + unzippedFileName, 'file',unzippedFileName);
-	
-	await parseFileToDatabase(directory+unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
+	console.log('Path to file:', directory + unzippedFileName, 'file', unzippedFileName);
+
+	await parseFileToDatabase(directory + unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
 }
