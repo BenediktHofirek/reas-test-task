@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { sep } = require('path');
 
+//delete directory and all subdirectories with all content, just for my interest
 export async function deleteDirectory(directory: string): Promise<boolean> {
 	const files: string[] = await new Promise((resolve, reject) => {
 		fs.readdir(directory, (err: any, files: string[]) => {

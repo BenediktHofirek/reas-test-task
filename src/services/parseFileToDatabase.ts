@@ -129,9 +129,7 @@ function createDocument(mainCollectionName: string, firstDocument: any): Promise
 				if (!err && record) {
 					Object.keys(record).forEach((key: string) => {
 						if (Array.isArray(record[key])) {
-							mongoose.connection
-								.collection(mainCollectionName)
-								.deleteMany({ _id: { $in: record[key] } });
+							mongoose.connection.collection(key).deleteMany({ _id: { $in: record[key] } });
 						}
 					});
 				}
@@ -154,10 +152,9 @@ function saveToDatabase(documentUpdate: any, mainCollectionName: string, cityNum
 	Object.keys(documentUpdate).filter((key) => documentUpdate[key].length).forEach((key) => {
 		mongoose.connection.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
 			if (err) {
-				console.log('interesting error', err);
+				console.log(err);
 				process.exit();
 			} else {
-				console.log('inserted', insertedItem.insertedIds);
 				mongoose.connection
 					.collection(mainCollectionName)
 					.updateOne(

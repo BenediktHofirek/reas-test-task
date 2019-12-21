@@ -1,5 +1,4 @@
 const url = require('url');
-const { sep } = require('path');
 import { getDownloadUrls } from './services/getDownloadUrls';
 import { createDirectory } from './services/createDirectory';
 import { deleteDirectory } from './services/deleteDirectory';
@@ -11,13 +10,14 @@ import { parseFileToDatabase } from './services/parseFileToDatabase';
 const databaseName = 'reasTestCaseDB';
 const mainCollectionName = 'landrecords';
 const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
-const bufferSize = 64 * 1024;
+const bufferSize = 512 * 1024;
+const cityNumber = process.argv[2];
 
 async function main() {
-	const downloadUrls: string[] = await getDownloadUrls();
+	const downloadUrls: string[] = await getDownloadUrls(cityNumber);
 
 	if (!downloadUrls.length) {
-		console.log('You entered wrong number');
+		console.log('You entered wrong city number');
 		process.exit(1);
 	}
 
@@ -30,16 +30,15 @@ async function main() {
 
 	await downloadFile(lastPackageUrl, path).then(() => {}, () => process.exit(1));
 
-	unzipFile(path);
+	const unzippedFilePath = await unzipFile(path, bufferSize).catch(() => {
+		console.log('Cannot unzip file');
+		process.exit();
+	});
 
-	const unzippedFilePath =
-		directory + fileName.slice(0, fileName.length - 4) + sep + fileName.slice(0, fileName.length - 4);
-
-	console.log(unzippedFilePath);
+	console.log('Path to file:', unzippedFilePath);
 
 	await parseFileToDatabase(unzippedFilePath, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
-	console.log('end');
 }
 main();

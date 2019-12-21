@@ -1,8 +1,7 @@
 const https = require('https');
 
-export function getDownloadUrls():Promise<string[]> {
-	const urlParameter = process.argv[2];
-	const requestUrl = `https://vdp.cuzk.cz/vdp/ruian/vymennyformat/vyhledej?vf.pu=S&_vf.pu=on&_vf.pu=on&vf.cr=U&vf.up=OB&vf.ds=Z&vf.vu=Z&_vf.vu=on&_vf.vu=on&_vf.vu=on&_vf.vu=on&vf.uo=O&ob.kod=${urlParameter}&search=Vyhledat`;
+export function getDownloadUrls(cityNumber: string):Promise<string[]> {
+	const requestUrl = `https://vdp.cuzk.cz/vdp/ruian/vymennyformat/vyhledej?vf.pu=S&_vf.pu=on&_vf.pu=on&vf.cr=U&vf.up=OB&vf.ds=Z&vf.vu=Z&_vf.vu=on&_vf.vu=on&_vf.vu=on&_vf.vu=on&vf.uo=O&ob.kod=${cityNumber}&search=Vyhledat`;
     return new Promise ((resolve, reject) => {
           https.get(requestUrl, (res: any) => {
           const { statusCode } = res;

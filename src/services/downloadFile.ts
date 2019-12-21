@@ -1,5 +1,4 @@
 const fs = require('fs');
-const url = require('url');
 const https = require('https');
 
 export function downloadFile(fileUrl:string | undefined, path: string):Promise<void>{
