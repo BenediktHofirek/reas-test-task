@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
-const fs = require('fs');
+const https = require('https');
+const unzip = require('unzip');
 
 export function parseFileToDatabase(
-	filePath: string,
+	fileUrl: string | undefined,
 	databaseName: string,
 	mainCollectionName: string,
-	searchTags: string[],
-	bufferSize: number
+	searchTags: string[]
 ): Promise<void> {
 	return new Promise(async (resolve, reject) => {
-		const { recordDate, cityNumber } = getInfo(filePath);
+		const { recordDate, cityNumber } = getInfo(fileUrl);
 		interface TagRecord {
 			tag: string;
 			position: number;
@@ -40,64 +40,69 @@ export function parseFileToDatabase(
 			process.exit(1);
 		});
 
-		//Create stream; highWaterMark is set to default size, but it can be changed anytime
-		const fileStream = fs.createReadStream(filePath, { highWaterMark: bufferSize, emitClose: true });
-		fileStream.setEncoding('utf8');
-
 		let globalData = '';
-		fileStream.on('readable', () => {
-			const documentUpdate = JSON.parse(JSON.stringify(documentTemplate));
-			let localData = globalData;
-			globalData = '';
 
-			let chunk = '';
-			while (null !== (chunk = fileStream.read())) {
-				localData += chunk;
-			}
+		https
+			.get(fileUrl, (res: any) => {
+				res.pipe(unzip.Parse()).on('entry', function(entry: any) {
+					entry.on('readable', () => {
+						const documentUpdate = JSON.parse(JSON.stringify(documentTemplate));
+						let localData = globalData;
+						globalData = '';
 
-			const searchResults: TagRecord[] = [];
-			searchTags.forEach((tag) => {
-				let position: number | undefined = 0;
-				//when add ' ', we are searching for the opening tag
-				while (-1 !== (position = localData.indexOf('<' + tag + ' ', position))) {
-					searchResults.push({ tag, position });
-					position++;
-				}
+						let chunk = '';
+						while (null !== (chunk = entry.read())) {
+							localData += chunk;
+						}
+
+						const searchResults: TagRecord[] = [];
+						searchTags.forEach((tag) => {
+							let position: number | undefined = 0;
+							//when add ' ', we are searching for the opening tag
+							while (-1 !== (position = localData.indexOf('<' + tag + ' ', position))) {
+								searchResults.push({ tag, position });
+								position++;
+							}
+						});
+
+						searchResults.sort((a: TagRecord, b: TagRecord) => (a.position > b.position ? 1 : -1));
+
+						//parse the tags
+						searchResults.forEach((res: TagRecord, index: number) => {
+							if (index === searchResults.length - 1) {
+								//only the last element can have closing tag in the next buffer
+								const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
+								if (closeTagIndex === -1) {
+									globalData = localData.slice(res.position);
+								} else {
+									// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
+									const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
+									documentUpdate[res.tag].push({ [res.tag]: newItem });
+
+									//at the end of chunk can be fragment of the tag, so we need to include the end in the next chunk
+									//+2 because '<' and ' ' chars and +1 just for sure :-)
+									globalData = localData.slice(-(maxTagLength + 3));
+								}
+							} else {
+								const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
+								// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
+								const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
+								documentUpdate[res.tag].push({ [res.tag]: newItem });
+							}
+						});
+
+						//save to database
+						saveToDatabase(documentUpdate, mainCollectionName, cityNumber, recordDate);
+					});
+				});
+				res.on('end', () => {
+					resolve();
+				});
+			})
+			.on('error', (e: any) => {
+				console.error(`Got error: ${e.message}`);
+				reject();
 			});
-
-			searchResults.sort((a: TagRecord, b: TagRecord) => (a.position > b.position ? 1 : -1));
-
-			//parse the tags
-			searchResults.forEach((res: TagRecord, index: number) => {
-				if (index === searchResults.length - 1) {
-					//only the last element can have closing tag in the next buffer
-					const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
-					if (closeTagIndex === -1) {
-						globalData = localData.slice(res.position);
-					} else {
-						// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
-						const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-						documentUpdate[res.tag].push({ [res.tag]: newItem });
-
-						//at the end of chunk can be fragment of the tag, so we need to include the end in the next chunk
-						//+2 because '<' and ' ' chars and +1 just for sure :-)
-						globalData = localData.slice(-(maxTagLength + 3));
-					}
-				} else {
-					const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
-					// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
-					const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-					documentUpdate[res.tag].push({ [res.tag]: newItem });
-				}
-			});
-
-			//save to database
-			saveToDatabase(documentUpdate, mainCollectionName, cityNumber, recordDate);
-		});
-
-		fileStream.on('close', () => {
-			resolve();
-		});
 	});
 }
 
@@ -171,7 +176,7 @@ function saveToDatabase(documentUpdate: any, mainCollectionName: string, cityNum
 	});
 }
 
-function getInfo(path: string): { cityNumber: number; recordDate: string } {
-	const result = path.match(/.+\/(\d+)_[A-Z]+_(\d+)_[A-Z]+\.xml$/) || [];
+function getInfo(url: any): { cityNumber: number; recordDate: string } {
+	const result = url.match(/.+\/(\d+)_[A-Z]+_(\d+)_[A-Z]+\.xml\.zip$/) || [];
 	return { recordDate: result[1], cityNumber: Number(result[2]) };
 }
