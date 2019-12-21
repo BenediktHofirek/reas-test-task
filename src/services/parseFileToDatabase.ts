@@ -5,7 +5,8 @@ export function parseFileToDatabase(
 	filePath: string,
 	databaseName: string,
 	mainCollectionName: string,
-	searchTags: string[]
+	searchTags: string[],
+	bufferSize: number
 ): Promise<void> {
 	return new Promise(async (resolve, reject) => {
 		const { recordDate, cityNumber } = getInfo(filePath);
@@ -40,12 +41,12 @@ export function parseFileToDatabase(
 		});
 
 		//Create stream; highWaterMark is set to default size, but it can be changed anytime
-		const fileStream = fs.createReadStream(filePath, { highWaterMark: 1024 * 64, emitClose: true });
+		const fileStream = fs.createReadStream(filePath, { highWaterMark: bufferSize, emitClose: true });
 		fileStream.setEncoding('utf8');
 
 		let globalData = '';
 		fileStream.on('readable', () => {
-			const documentUpdate = Object.assign({}, documentTemplate);
+			const documentUpdate = JSON.parse(JSON.stringify(documentTemplate));
 			let localData = globalData;
 			globalData = '';
 
@@ -76,17 +77,17 @@ export function parseFileToDatabase(
 					} else {
 						// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
 						const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-						documentUpdate[res.tag].push(newItem);
+						documentUpdate[res.tag].push({ [res.tag]: newItem });
 
 						//at the end of chunk can be fragment of the tag, so we need to include the end in the next chunk
-						//+3 because '<' and ' ' chars and +1 just for sure :-)
+						//+2 because '<' and ' ' chars and +1 just for sure :-)
 						globalData = localData.slice(-(maxTagLength + 3));
 					}
 				} else {
 					const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
 					// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
 					const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-					documentUpdate[res.tag].push(newItem);
+					documentUpdate[res.tag].push({ [res.tag]: newItem });
 				}
 			});
 
@@ -119,8 +120,22 @@ function openDatabaseConnection(databaseName: string): Promise<void> {
 }
 
 function createDocument(mainCollectionName: string, firstDocument: any): Promise<void> {
-	return new Promise((resolve, reject) => {
+	return new Promise(async (resolve, reject) => {
 		const { cityNumber, recordDate } = firstDocument;
+		//delete all records in other collections document if exist, because we want not to have two documents with same data
+		await mongoose.connection
+			.collection(mainCollectionName)
+			.findOne({ cityNumber, recordDate }, (err: any, record: any) => {
+				if (!err && record) {
+					Object.keys(record).forEach((key: string) => {
+						if (Array.isArray(record[key])) {
+							mongoose.connection
+								.collection(mainCollectionName)
+								.deleteMany({ _id: { $in: record[key] } });
+						}
+					});
+				}
+			});
 
 		//delete document if exist, because we want not to have two documents with same data
 		mongoose.connection.collection(mainCollectionName).deleteOne({ cityNumber, recordDate }, () => {
@@ -136,25 +151,25 @@ function createDocument(mainCollectionName: string, firstDocument: any): Promise
 }
 
 function saveToDatabase(documentUpdate: any, mainCollectionName: string, cityNumber: number, recordDate: string): void {
-	Object.keys(documentUpdate).forEach((key) => {
-		documentUpdate[key].forEach((value: string[]) => {
-			mongoose.connection.collection(key).insertOne({ [key]: value }, (err: any, insertedItem: any) => {
-				if (err) {
-					console.log(err);
-				} else {
-					mongoose.connection
-						.collection(mainCollectionName)
-						.updateOne(
-							{ cityNumber, recordDate },
-							{ $push: { [key]: insertedItem.insertedId } },
-							(err: any) => {
-								if (err) {
-									console.log(err);
-								}
+	Object.keys(documentUpdate).filter((key) => documentUpdate[key].length).forEach((key) => {
+		mongoose.connection.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
+			if (err) {
+				console.log('interesting error', err);
+				process.exit();
+			} else {
+				console.log('inserted', insertedItem.insertedIds);
+				mongoose.connection
+					.collection(mainCollectionName)
+					.updateOne(
+						{ cityNumber, recordDate },
+						{ $push: { [key]: { $each: Object.values(insertedItem.insertedIds) } } },
+						(err: any) => {
+							if (err) {
+								console.log('inside errorrr', err);
 							}
-						);
-				}
-			});
+						}
+					);
+			}
 		});
 	});
 }

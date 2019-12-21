@@ -11,6 +11,7 @@ import { parseFileToDatabase } from './services/parseFileToDatabase';
 const databaseName = 'reasTestCaseDB';
 const mainCollectionName = 'landrecords';
 const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
+const bufferSize = 64 * 1024;
 
 async function main() {
 	const downloadUrls: string[] = await getDownloadUrls();
@@ -36,8 +37,9 @@ async function main() {
 
 	console.log(unzippedFilePath);
 
-	await parseFileToDatabase(unzippedFilePath, databaseName, mainCollectionName, searchTags);
+	await parseFileToDatabase(unzippedFilePath, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
+	console.log('end');
 }
 main();
