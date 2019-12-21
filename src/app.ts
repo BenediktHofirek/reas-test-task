@@ -3,7 +3,6 @@ import { getDownloadUrls } from './services/getDownloadUrls';
 import { createDirectory } from './services/createDirectory';
 import { deleteDirectory } from './services/deleteDirectory';
 import { downloadFile } from './services/downloadFile';
-import { unzipFile } from './services/unzipFile';
 import { parseFileToDatabase } from './services/parseFileToDatabase';
 
 //variables that can possibly be dynamicaly given to programm
@@ -30,8 +29,6 @@ async function main() {
 
 	await downloadFile(newestPackageUrl, directory).catch(() => process.exit(1));
 
-	console.log('Path to file:', directory + unzippedFileName, 'file',unzippedFileName);
-	
 	await parseFileToDatabase(directory+unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
