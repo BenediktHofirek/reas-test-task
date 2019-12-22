@@ -9,7 +9,7 @@ import { parseFileToDatabase } from './services/parseFileToDatabase';
 const databaseName = 'reasTestCaseDB';
 const mainCollectionName = 'landrecords';
 const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
-const bufferSize = 512 * 1024;
+const bufferSize = 64 * 1024;
 const cityNumber = process.argv[2];
 
 async function main() {

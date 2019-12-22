@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
 const fs = require('fs');
+import { Database } from './database';
 
 export function parseFileToDatabase(
 	filePath: string,
@@ -17,30 +17,33 @@ export function parseFileToDatabase(
 
 		let maxTagLength = 0;
 		const documentTemplate: any = {};
-		const schemaObject: any = {};
 
 		//initialize
 		searchTags.forEach((tag) => {
 			documentTemplate[tag] = [];
-			schemaObject[tag] = mongoose.Schema.Types.Array;
 			if (tag.length > maxTagLength) {
 				maxTagLength = tag.length;
 			}
 		});
 
-		await openDatabaseConnection(databaseName)
+		const db = new Database(databaseName, mainCollectionName);
+
+		await db.openConnection()
 			.then(() => console.log('Mongoose default connection open to ' + databaseName))
 			.catch((err: any) => {
 				console.log('Mongoose default connection error: ' + err);
 				process.exit(1);
 			});
 
-		await createDocument(mainCollectionName, { ...documentTemplate, recordDate, cityNumber }).catch((err: any) => {
-			console.log('Cannot create document: ' + err);
-			process.exit(1);
-		});
+		await db.deleteDocument({recordDate, cityNumber});
 
-		//Create stream; highWaterMark is set to default size, but it can be changed anytime
+		await db.createDocument({ ...documentTemplate, recordDate, cityNumber })
+			.catch((err: any) => {
+				console.log('Cannot create document: ' + err);
+				process.exit(1);
+			});
+
+		//Create readable stream
 		const fileStream = fs.createReadStream(filePath, { highWaterMark: bufferSize, emitClose: true });
 		fileStream.setEncoding('utf8');
 
@@ -92,81 +95,11 @@ export function parseFileToDatabase(
 			});
 
 			//save to database
-			saveToDatabase(documentUpdate, mainCollectionName, cityNumber, recordDate);
+			db.saveParsedData(documentUpdate, cityNumber, recordDate);
 		});
 
 		fileStream.on('close', () => {
 			resolve();
-		});
-	});
-}
-
-function openDatabaseConnection(databaseName: string): Promise<void> {
-	return new Promise((resolve, reject) => {
-		mongoose.connect(`mongodb://localhost:27017/${databaseName}`, {
-			useNewUrlParser: true,
-			useUnifiedTopology: true
-		});
-		// When successfully connected
-		mongoose.connection.on('connected', function() {
-			resolve();
-		});
-
-		// If the connection throws an error
-		mongoose.connection.on('error', function(err: any) {
-			reject(err);
-		});
-	});
-}
-
-function createDocument(mainCollectionName: string, firstDocument: any): Promise<void> {
-	return new Promise(async (resolve, reject) => {
-		const { cityNumber, recordDate } = firstDocument;
-		//delete all records in other collections document if exist, because we want not to have two documents with same data
-		await mongoose.connection
-			.collection(mainCollectionName)
-			.findOne({ cityNumber, recordDate }, (err: any, record: any) => {
-				if (!err && record) {
-					Object.keys(record).forEach((key: string) => {
-						if (Array.isArray(record[key])) {
-							mongoose.connection.collection(key).deleteMany({ _id: { $in: record[key] } });
-						}
-					});
-				}
-			});
-
-		//delete document if exist, because we want not to have two documents with same data
-		mongoose.connection.collection(mainCollectionName).deleteOne({ cityNumber, recordDate }, () => {
-			mongoose.connection.collection(mainCollectionName).insertOne(firstDocument, (err: any, rec: any) => {
-				if (err) {
-					reject();
-				} else {
-					resolve();
-				}
-			});
-		});
-	});
-}
-
-function saveToDatabase(documentUpdate: any, mainCollectionName: string, cityNumber: number, recordDate: string): void {
-	Object.keys(documentUpdate).filter((key) => documentUpdate[key].length).forEach((key) => {
-		mongoose.connection.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
-			if (err) {
-				console.log(err);
-				process.exit();
-			} else {
-				mongoose.connection
-					.collection(mainCollectionName)
-					.updateOne(
-						{ cityNumber, recordDate },
-						{ $push: { [key]: { $each: Object.values(insertedItem.insertedIds) } } },
-						(err: any) => {
-							if (err) {
-								console.log('inside errorrr', err);
-							}
-						}
-					);
-			}
 		});
 	});
 }
