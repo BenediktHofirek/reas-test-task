@@ -9,7 +9,7 @@ import { parseFileToDatabase } from './services/parseFileToDatabase';
 const databaseName = 'reasTestCaseDB';
 const mainCollectionName = 'landrecords';
 const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
-const bufferSize = 64 * 1024;
+const bufferSize = 25000 * 1024;
 const cityNumber = process.argv[2];
 
 async function main() {
@@ -25,12 +25,14 @@ async function main() {
 
 	const newestPackageUrl = downloadUrls.pop();
 	const zippedFileName = url.parse(newestPackageUrl).pathname.split('/').pop();
-	const unzippedFileName = zippedFileName.slice(0, zippedFileName.length -4);
+	const unzippedFileName = zippedFileName.slice(0, zippedFileName.length - 4);
 
 	await downloadFile(newestPackageUrl, directory).catch(() => process.exit(1));
 
-	await parseFileToDatabase(directory+unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
+	await parseFileToDatabase(directory + unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
+	console.log('end');
+	process.exit();
 }
 main();

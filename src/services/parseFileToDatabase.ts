@@ -1,5 +1,6 @@
 const fs = require('fs');
 import { Database } from './database';
+import { parseTags } from './parseTags';
 
 export function parseFileToDatabase(
 	filePath: string,
@@ -10,17 +11,13 @@ export function parseFileToDatabase(
 ): Promise<void> {
 	return new Promise(async (resolve, reject) => {
 		const { recordDate, cityNumber } = getInfo(filePath);
-		interface TagRecord {
-			tag: string;
-			position: number;
-		}
 
 		let maxTagLength = 0;
-		const documentTemplate: any = {};
+		const parsedTagsTemplate: any = {};
 
 		//initialize
 		searchTags.forEach((tag) => {
-			documentTemplate[tag] = [];
+			parsedTagsTemplate[tag] = [];
 			if (tag.length > maxTagLength) {
 				maxTagLength = tag.length;
 			}
@@ -28,74 +25,43 @@ export function parseFileToDatabase(
 
 		const db = new Database(databaseName, mainCollectionName);
 
-		await db.openConnection()
+		await db
+			.openConnection()
 			.then(() => console.log('Mongoose default connection open to ' + databaseName))
 			.catch((err: any) => {
 				console.log('Mongoose default connection error: ' + err);
 				process.exit(1);
 			});
 
-		await db.deleteDocument({recordDate, cityNumber});
+		await db.deleteDocument({ recordDate, cityNumber });
 
-		await db.createDocument({ ...documentTemplate, recordDate, cityNumber })
-			.catch((err: any) => {
-				console.log('Cannot create document: ' + err);
-				process.exit(1);
-			});
+		await db.createDocument({ ...parsedTagsTemplate, recordDate, cityNumber }).catch((err: any) => {
+			console.log('Cannot create document: ' + err);
+			process.exit(1);
+		});
+
+		let globalData = '';
 
 		//Create readable stream
 		const fileStream = fs.createReadStream(filePath, { highWaterMark: bufferSize, emitClose: true });
 		fileStream.setEncoding('utf8');
 
-		let globalData = '';
-		fileStream.on('readable', () => {
-			const documentUpdate = JSON.parse(JSON.stringify(documentTemplate));
-			let localData = globalData;
+		let counter = 0;
+		fileStream.on('data', async (chunk: string) => {
+			fileStream.pause();
+			let x = counter++;
+			console.log('start', x);
+			const parsedTags = JSON.parse(JSON.stringify(parsedTagsTemplate));
+			let localData = globalData + chunk;
 			globalData = '';
 
-			let chunk = '';
-			while (null !== (chunk = fileStream.read())) {
-				localData += chunk;
-			}
-
-			const searchResults: TagRecord[] = [];
-			searchTags.forEach((tag) => {
-				let position: number | undefined = 0;
-				//when add ' ', we are searching for the opening tag
-				while (-1 !== (position = localData.indexOf('<' + tag + ' ', position))) {
-					searchResults.push({ tag, position });
-					position++;
-				}
-			});
-
-			searchResults.sort((a: TagRecord, b: TagRecord) => (a.position > b.position ? 1 : -1));
-
-			//parse the tags
-			searchResults.forEach((res: TagRecord, index: number) => {
-				if (index === searchResults.length - 1) {
-					//only the last element can have closing tag in the next buffer
-					const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
-					if (closeTagIndex === -1) {
-						globalData = localData.slice(res.position);
-					} else {
-						// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
-						const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-						documentUpdate[res.tag].push({ [res.tag]: newItem });
-
-						//at the end of chunk can be fragment of the tag, so we need to include the end in the next chunk
-						//+2 because '<' and ' ' chars and +1 just for sure :-)
-						globalData = localData.slice(-(maxTagLength + 3));
-					}
-				} else {
-					const closeTagIndex = localData.indexOf('</' + res.tag + '>', res.position);
-					// +3 because we need to count "/", ">" and we want to include the closing bracket (+1)
-					const newItem = localData.slice(res.position, closeTagIndex + res.tag.length + 3);
-					documentUpdate[res.tag].push({ [res.tag]: newItem });
-				}
-			});
-
+			//parsedTags are mutate in the function
+			globalData = parseTags(parsedTags, localData, searchTags, maxTagLength);
+			console.log('pruchod2');
 			//save to database
-			db.saveParsedData(documentUpdate, cityNumber, recordDate);
+			await db.saveParsedData(parsedTags, cityNumber, recordDate);
+			console.log('end', x);
+			fileStream.resume();
 		});
 
 		fileStream.on('close', () => {

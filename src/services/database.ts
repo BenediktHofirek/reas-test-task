@@ -63,24 +63,35 @@ export class Database {
 		});
 	}
 
-	public saveParsedData(documentUpdate: any, cityNumber: number, recordDate: string): void {
-		Object.keys(documentUpdate).filter((key) => documentUpdate[key].length).forEach((key) => {
-			this.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
-				if (err) {
-					console.log(err);
-					process.exit();
-				} else {
-					this.collection().updateOne(
-						{ cityNumber, recordDate },
-						{ $push: { [key]: { $each: Object.values(insertedItem.insertedIds) } } },
-						(err: any) => {
-							if (err) {
-								console.log(err);
+	public saveParsedData(documentUpdate: any, cityNumber: number, recordDate: string): Promise<void> {
+		return new Promise((resolve) => {
+			const keysToUse = Object.keys(documentUpdate).filter((key) => documentUpdate[key].length);
+			let counter = keysToUse.length;
+			if(!counter){
+				resolve();
+			}
+			keysToUse.forEach((key) => {
+				this.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
+					if (err) {
+						console.log(err);
+						process.exit();
+					} else {
+						this.collection().updateOne(
+							{ cityNumber, recordDate },
+							{ $push: { [key]: { $each: Object.values(insertedItem.insertedIds) } } },
+							(err: any) => {
+								if (err) {
+									console.log(err);
+									process.exit();
+								}else if(!--counter){
+									console.log('resolved');
+									resolve();
+								}
 							}
-						}
-					);
-				}
+						);
+					}
+				});
 			});
-		});
+		})
 	}
 }
