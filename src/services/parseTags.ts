@@ -40,7 +40,6 @@ export function parseTags(parsedTags: any, dataToParse: string, searchTags: stri
 			parsedTags[res.tag].push({ [res.tag]: newItem });
 		}
 	});
-	
+
 	return leftOverData;
-	//just for typescript, this return cannot occur
 }

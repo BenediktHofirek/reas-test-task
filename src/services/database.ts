@@ -30,8 +30,8 @@ export class Database {
 		});
 	}
 
-	//delete document in main collection if exist, because we dont want to have two same
-	//records; also delete all records in another collection associated with this document
+	/*delete document in main collection if exist, because we dont want to have two same
+	records; also delete all records in another collections associated with this document*/
 	public deleteDocument(filter: any): Promise<void> {
 		return new Promise(async (resolve, reject) => {
 			await this.collection().findOne(filter, (err: any, record: any) => {
@@ -67,9 +67,11 @@ export class Database {
 		return new Promise((resolve) => {
 			const keysToUse = Object.keys(documentUpdate).filter((key) => documentUpdate[key].length);
 			let counter = keysToUse.length;
-			if(!counter){
+
+			if (!counter) {
 				resolve();
 			}
+
 			keysToUse.forEach((key) => {
 				this.collection(key).insertMany(documentUpdate[key], (err: any, insertedItem: any) => {
 					if (err) {
@@ -83,8 +85,7 @@ export class Database {
 								if (err) {
 									console.log(err);
 									process.exit();
-								}else if(!--counter){
-									console.log('resolved');
+								} else if (!--counter) {
 									resolve();
 								}
 							}
@@ -92,6 +93,10 @@ export class Database {
 					}
 				});
 			});
-		})
+		});
+	}
+
+	public closeConnection() {
+		mongoose.disconnect();
 	}
 }

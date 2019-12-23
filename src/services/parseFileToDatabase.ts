@@ -46,25 +46,28 @@ export function parseFileToDatabase(
 		const fileStream = fs.createReadStream(filePath, { highWaterMark: bufferSize, emitClose: true });
 		fileStream.setEncoding('utf8');
 
-		let counter = 0;
+		let closeDatabaseFunction: any = undefined;
 		fileStream.on('data', async (chunk: string) => {
 			fileStream.pause();
-			let x = counter++;
-			console.log('start', x);
+			
 			const parsedTags = JSON.parse(JSON.stringify(parsedTagsTemplate));
 			let localData = globalData + chunk;
 			globalData = '';
 
 			//parsedTags are mutate in the function
 			globalData = parseTags(parsedTags, localData, searchTags, maxTagLength);
-			console.log('pruchod2');
+
 			//save to database
 			await db.saveParsedData(parsedTags, cityNumber, recordDate);
-			console.log('end', x);
+			//if it is last turn, the closeDatabaseFunction is defined
+			if (closeDatabaseFunction) {
+				closeDatabaseFunction();
+			}
 			fileStream.resume();
 		});
 
 		fileStream.on('close', () => {
+			closeDatabaseFunction = db.closeConnection;
 			resolve();
 		});
 	});

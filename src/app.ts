@@ -5,12 +5,19 @@ import { deleteDirectory } from './services/deleteDirectory';
 import { downloadFile } from './services/downloadFile';
 import { parseFileToDatabase } from './services/parseFileToDatabase';
 
-//variables that can possibly be dynamicaly given to programm
-const databaseName = 'reasTestCaseDB';
-const mainCollectionName = 'landrecords';
-const searchTags = [ 'vf:Obec', 'vf:CastObce', 'vf:Ulice', 'vf:StavebniObjekt', 'vf:Parcela', 'vf:AdresniMisto' ];
-const bufferSize = 25000 * 1024;
-const cityNumber = process.argv[2];
+//variables that can possibly be dynamicaly given to program
+const cityNumber = process.argv[2] || '554782';
+const bufferSize = (Number(process.argv[3]) || 1000) * 1024;
+const searchTags = (process.argv[4] && JSON.parse(process.argv[4])) || [
+	'vf:Obec',
+	'vf:CastObce',
+	'vf:Ulice',
+	'vf:StavebniObjekt',
+	'vf:Parcela',
+	'vf:AdresniMisto'
+];
+const databaseName = process.argv[5] || 'reasTestCaseDB';
+const mainCollectionName = process.argv[6] || 'landrecords';
 
 async function main() {
 	const downloadUrls: string[] = await getDownloadUrls(cityNumber);
@@ -32,7 +39,7 @@ async function main() {
 	await parseFileToDatabase(directory + unzippedFileName, databaseName, mainCollectionName, searchTags, bufferSize);
 	//delete created directory
 	await deleteDirectory(directory);
-	console.log('end');
+
 	process.exit();
 }
 main();
